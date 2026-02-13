@@ -106,6 +106,10 @@ const auth = getAuth(app);
 const plansContainer = document.getElementById("plans");
 const levelBox = document.getElementById("levelBox");
 
+let user = null;
+let userData = { balance:0, level:0 }; // بيانات افتراضية لتسريع العرض
+
+// باقات الاستثمار جاهزة مسبقاً
 const plans = [
   {id:"A1",name:"VP A1",amount:4000,profit:200,open:true,level:1},
   {id:"D2",name:"VP D2",amount:15800,profit:500,open:true,level:2},
@@ -118,37 +122,12 @@ const plans = [
   {id:"F9",name:"VP F9",amount:11000000,profit:100000,open:false,level:9}
 ];
 
-onAuthStateChanged(auth, async(user)=>{
-  if(!user){
-    alert("❌ الرجاء تسجيل الدخول أولاً");
-    window.location.href="login.html";
-    return;
-  }
-
-  const userRef = doc(db,"users",user.uid);
-  const userSnap = await getDoc(userRef);
-  if(!userSnap.exists()){
-    alert("❌ بيانات المستخدم غير موجودة");
-    window.location.href="login.html";
-    return;
-  }
-
-  let userData = userSnap.data();
-  levelBox.textContent = `⭐ المستوى: VIP ${userData.level || 0}`;
-
+// عرض الباقات مباشرة
+function renderPlans(){
+  plansContainer.innerHTML = ""; // تفريغ القديم
   for(const plan of plans){
-    try{
-      const docRef = doc(db,"plans",plan.id);
-      const snap = await getDoc(docRef);
-      if(snap.exists()){
-        plan.open = snap.data().open;
-      }
-    }catch(e){
-      console.log("خطأ في Firebase",plan.id,e);
-    }
-
     const card = document.createElement("div");
-    card.className="card";
+    card.className = "card";
     if(!plan.open) card.classList.add("locked");
 
     card.innerHTML = `
@@ -163,26 +142,58 @@ onAuthStateChanged(auth, async(user)=>{
 
     const btn = card.querySelector("button");
     btn.onclick = async()=>{
-      userData = (await getDoc(userRef)).data();
+      if(!user){
+        alert("❌ الرجاء تسجيل الدخول أولاً");
+        return;
+      }
 
-      if(userData.balance >= plan.amount){
-        // خصم المبلغ + تحديث المستوى
-        await updateDoc(userRef,{
-          balance: userData.balance - plan.amount,
-          level: plan.level
-        });
-        levelBox.textContent = `⭐ المستوى: VIP ${plan.level}`;
-        alert("🎊 تم الاستثمار بنجاح!");
-      }else{
-        alert("❌ رصيد غير كافي!");
-        setTimeout(() => { window.location.href = "deposit.html"; }, 100);
+      // جلب بيانات المستخدم من Firebase بشكل سريع
+      try{
+        const userRef = doc(db,"users",user.uid);
+        const snap = await getDoc(userRef);
+        userData = snap.exists() ? snap.data() : { balance:0, level:0 };
+
+        if(userData.balance >= plan.amount){
+          await updateDoc(userRef,{
+            balance: userData.balance - plan.amount,
+            level: plan.level
+          });
+          levelBox.textContent = `⭐ المستوى: VIP ${plan.level}`;
+          alert("🎊 تم الاستثمار بنجاح!");
+        }else{
+          alert("❌ رصيد غير كافي!");
+          setTimeout(()=> window.location.href="deposit.html",100);
+        }
+      }catch(e){
+        console.error("خطأ Firebase:", e);
+        alert("❌ حدث خطأ، حاول مرة أخرى");
       }
     };
 
     plansContainer.appendChild(card);
   }
-});
-</script>
+}
 
-</body>
-</html>
+// التحقق من تسجيل الدخول
+onAuthStateChanged(auth, async(u)=>{
+  if(!u){
+    alert("❌ الرجاء تسجيل الدخول أولاً");
+    window.location.href="login.html";
+    return;
+  }
+  user = u;
+
+  // جلب بيانات المستخدم بسرعة لتحديث المستوى
+  try{
+    const userRef = doc(db,"users",user.uid);
+    const snap = await getDoc(userRef);
+    userData = snap.exists() ? snap.data() : { balance:0, level:0 };
+    levelBox.textContent = `⭐ المستوى: VIP ${userData.level || 0}`;
+  }catch(e){
+    console.error("خطأ جلب البيانات:", e);
+  }
+});
+
+// عرض الباقات فوراً بدون انتظار Firebase
+renderPlans();
+</script>
