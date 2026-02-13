@@ -1,22 +1,16 @@
+const express = require("express");
+const path = require("path");
 
-import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
-import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-const auth = getAuth();
-const db = getFirestore();
+// يخدم ملفات HTML/CSS/JS
+app.use(express.static(path.join(__dirname)));
 
-onAuthStateChanged(auth, async user=>{
-  if(!user){
-    localStorage.removeItem("userData");
-    window.location.href="login.html";
-    return;
-  }
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
+});
 
-  const userRef = doc(db,"users", user.uid);
-  const snap = await getDoc(userRef);
-
-  if(snap.exists()){
-    localStorage.setItem("userData", JSON.stringify(snap.data()));
-    console.log("Fast Mode: بيانات المستخدم محفوظة");
-  }
+app.listen(PORT, () => {
+  console.log("Server running on port " + PORT);
 });
